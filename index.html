@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Restaurant Review · Gemini AI</title>
+    <style>
+        * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto; touch-action: manipulation; }
+        body { background: #fef7e6; margin: 0; padding: 20px; }
+        .container { max-width: 650px; margin: 0 auto; }
+        .card { background: white; border-radius: 32px; padding: 1.8rem; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        h1 { margin: 0 0 0.25rem; font-size: 1.8rem; }
+        .sub { color: #6b4c2c; margin-bottom: 1.5rem; border-left: 3px solid #f97316; padding-left: 12px; }
+        .category { background: #fef9ef; border-radius: 20px; padding: 12px 16px; margin-bottom: 16px; }
+        .category-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
+        .stars { display: flex; gap: 12px; flex-wrap: wrap; }
+        .star { font-size: 2rem; cursor: pointer; color: #d4d4d4; transition: 0.05s linear; user-select: none; }
+        .star.active { color: #fbbf24; text-shadow: 0 0 2px #f59e0b; }
+        .star:active { transform: scale(0.92); }
+        button { background: #f97316; border: none; width: 100%; padding: 14px; border-radius: 60px; font-weight: bold; font-size: 1rem; color: white; margin-top: 1rem; cursor: pointer; transition: 0.2s; }
+        button.secondary { background: #1f2937; }
+        button:active { transform: scale(0.97); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        textarea { width: 100%; padding: 1rem; border-radius: 20px; border: 1px solid #e2e8f0; background: #fffdf9; font-size: 0.9rem; margin-top: 8px; font-family: inherit; }
+        .small-note { font-size: 0.7rem; text-align: center; color: #6c757d; margin-top: 1rem; }
+        hr { margin: 1rem 0; border-color: #ffe2b5; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>⭐ Rate & AI Review</h1>
+        <div class="sub">Tap stars → AI writes review → edit → post on Google</div>
+
+        <!-- Categories will be injected here -->
+        <div id="categoriesContainer"></div>
+
+        <button id="generateBtn">✨ Generate AI Review (Gemini)</button>
+
+        <label style="font-weight: 600; margin-top: 1rem;">✏️ Your review (editable)</label>
+        <textarea id="reviewText" rows="4" placeholder="AI review will appear here..."></textarea>
+
+        <button id="googleBtn" class="secondary">📱 Continue to Google Review</button>
+        <div class="small-note">
+            ✅ Your review is copied automatically. On Google: long‑press text box → Paste → tap matching stars.
+        </div>
+        <hr>
+        <div class="small-note" style="background:#fff0e0; border-radius: 20px; padding: 8px;">
+            🔑 <strong>Gemini API key required</strong> – replace <code style="background:white;">YOUR_GEMINI_API_KEY</code> in the script below.
+        </div>
+    </div>
+</div>
+
+<script>
+    // ========================
+    // 🔑 INSERT YOUR GEMINI API KEY HERE
+    const GEMINI_API_KEY = "AIzaSyDz3tRuCe8BHnhu8T56MAjwIhlemc1zsNQ";   // <-- REPLACE WITH YOUR REAL KEY
+    // ========================
+
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    // Categories
+    const categories = [
+        { id: "food", label: "🍔 Food Quality", default: 4 },
+        { id: "service", label: "🛎️ Service", default: 4 },
+        { id: "atmosphere", label: "🌿 Atmosphere", default: 4 },
+        { id: "cleanliness", label: "🧼 Cleanliness", default: 4 },
+        { id: "overall", label: "🏆 Overall Experience", default: 4 }
+    ];
+
+    let ratings = {};
+
+    // Render categories directly when DOM is ready
+    function renderCategories() {
+        const container = document.getElementById("categoriesContainer");
+        if (!container) {
+            console.error("Container not found!");
+            return;
+        }
+        container.innerHTML = "";
+        for (let cat of categories) {
+            ratings[cat.id] = cat.default;
+            const div = document.createElement("div");
+            div.className = "category";
+            div.innerHTML = `
+                <div class="category-header">
+                    <span>${cat.label}</span>
+                    <span id="label-${cat.id}" style="background:#e9eef3; padding:2px 12px; border-radius:40px;">${cat.default}/5</span>
+                </div>
+                <div class="stars" id="stars-${cat.id}"></div>
+            `;
+            container.appendChild(div);
+
+            // Create stars
+            const starContainer = div.querySelector(`#stars-${cat.id}`);
+            for (let i = 1; i <= 5; i++) {
+                const star = document.createElement("span");
+                star.className = `star ${i <= cat.default ? 'active' : ''}`;
+                star.innerHTML = "★";
+                star.addEventListener("click", (function(catId, val) {
+                    return function() { updateRating(catId, val); };
+                })(cat.id, i));
+                starContainer.appendChild(star);
+            }
+        }
+    }
+
+    function updateRating(catId, value) {
+        ratings[catId] = value;
+        // Update star visuals
+        const starContainer = document.getElementById(`stars-${catId}`);
+        if (starContainer) {
+            const stars = starContainer.querySelectorAll(".star");
+            stars.forEach((star, idx) => {
+                if (idx < value) star.classList.add("active");
+                else star.classList.remove("active");
+            });
+        }
+        // Update label
+        const labelSpan = document.getElementById(`label-${catId}`);
+        if (labelSpan) labelSpan.innerText = `${value}/5`;
+    }
+
+    async function callGemini() {
+        const food = ratings.food;
+        const service = ratings.service;
+        const atmosphere = ratings.atmosphere;
+        const cleanliness = ratings.cleanliness;
+        const overall = ratings.overall;
+
+        const prompt = `Write a short, natural restaurant review based on:
+- Food: ${food}/5
+- Service: ${service}/5
+- Atmosphere: ${atmosphere}/5
+- Cleanliness: ${cleanliness}/5
+- Overall: ${overall}/5
+
+Do NOT mention numbers. Keep it under 70 words, friendly and honest.`;
+
+        try {
+            const response = await fetch(GEMINI_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(`API error ${response.status}: ${err}`);
+            }
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) throw new Error("Empty response");
+            return text.trim();
+        } catch (error) {
+            console.error("Gemini error:", error);
+            return `⚠️ AI unavailable. Based on your ratings: Food ${food}/5, Service ${service}/5, Atmosphere ${atmosphere}/5, Cleanliness ${cleanliness}/5, Overall ${overall}/5. Still a nice experience!`;
+        }
+    }
+
+    async function generateReview() {
+        const btn = document.getElementById("generateBtn");
+        const textarea = document.getElementById("reviewText");
+        btn.disabled = true;
+        btn.innerText = "🤖 AI is writing...";
+        textarea.value = "Generating review using Gemini AI...";
+        
+        const review = await callGemini();
+        textarea.value = review;
+        
+        btn.disabled = false;
+        btn.innerText = "✨ Generate AI Review (Gemini)";
+    }
+
+    function openGoogleAndCopy() {
+        const placeId = "ChIJTfVaJy7fgzkRH5771V-3bgg";  // Your restaurant's Place ID
+        const reviewText = document.getElementById("reviewText").value;
+        if (reviewText && navigator.clipboard) {
+            navigator.clipboard.writeText(reviewText).then(() => {
+                alert("✅ Review copied! Now tap OK to open Google.\n\nOn Google's page:\n1. Long-press the 'Share details' box\n2. Paste\n3. Tap stars that match your ratings\n4. Submit");
+            }).catch(() => {
+                alert("Could not copy automatically. Please copy manually.");
+            });
+        } else {
+            alert("Please copy the review manually.");
+        }
+        window.open(`https://search.google.com/local/writereview?placeid=${placeId}`, "_blank");
+    }
+
+    // Initialize everything when page loads
+    document.addEventListener("DOMContentLoaded", () => {
+        renderCategories();
+        document.getElementById("generateBtn").addEventListener("click", generateReview);
+        document.getElementById("googleBtn").addEventListener("click", openGoogleAndCopy);
+        // Generate an initial review after 0.5s
+        setTimeout(generateReview, 500);
+    });
+</script>
+</body>
+</html>
