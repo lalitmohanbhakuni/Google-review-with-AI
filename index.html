@@ -57,11 +57,12 @@
     const GEMINI_API_KEY = "AIzaSyDz3tRuCe8BHnhu8T56MAjwIhlemc1zsNQ";   // <-- REPLACE WITH YOUR REAL KEY
     // ========================
 
-    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    
     // Categories
     const categories = [
-        { id: "food", label: "🍔 Food Quality", default: 4 },
-        { id: "service", label: "🛎️ Service", default: 4 },
+        { id: "food", label: " Quality", default: 4 },
+        { id: "service", label: " Service", default: 4 },
         { id: "atmosphere", label: "🌿 Atmosphere", default: 4 },
         { id: "cleanliness", label: "🧼 Cleanliness", default: 4 },
         { id: "overall", label: "🏆 Overall Experience", default: 4 }
